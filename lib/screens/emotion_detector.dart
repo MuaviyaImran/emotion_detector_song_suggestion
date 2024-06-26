@@ -1,13 +1,18 @@
-
 import 'dart:async';
-
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import 'package:tflite_v2/tflite_v2.dart';
 import 'package:emosift/models/playlist_model.dart';
 import 'package:emosift/screens/home_screen.dart';
 import 'package:emosift/widgets/playlist_card.dart';
 import 'package:emosift/widgets/section_header.dart';
-import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:tflite_v2/tflite_v2.dart';
+import 'package:image/image.dart' as imglib; // To handle images
+import 'dart:io';
+import 'dart:math' as math;
+import 'package:path/path.dart' as path; // Add this import
 
 class EmotionDetector extends StatefulWidget {
   const EmotionDetector({Key? key}) : super(key: key);
@@ -17,83 +22,38 @@ class EmotionDetector extends StatefulWidget {
 }
 
 class _EmotionDetectorState extends State<EmotionDetector> {
-  CameraImage? cameraImage;
-  CameraController? _cameraController;
   String output = '';
-  bool isModelBusy = false;
-  bool isFrontCamera = false;
   bool showButton = false;
+  bool isImageLoaded = false;
+  bool loading = false;
+  CameraController? _controller;
+  bool _isCameraReady = false;
+  late imglib.Image image =
+      imglib.Image(300, 300); // Initialize with a default image size
+  String _errorMessage = "";
 
   @override
   void initState() {
     super.initState();
-    loadCamera();
+    _initializeCamera(CameraLensDirection.front);
     loadModel();
   }
 
-  loadCamera() async {
+  Future<void> _initializeCamera(CameraLensDirection direction) async {
     final cameras = await availableCameras();
-    final selectedCamera = isFrontCamera ? cameras[1] : cameras[0];
+    final camera = cameras.firstWhere(
+        (camera) => camera.lensDirection == direction,
+        orElse: () => cameras.first);
 
-    _cameraController =
-        CameraController(selectedCamera, ResolutionPreset.medium);
-    await _cameraController!.initialize();
+    _controller = CameraController(
+      camera, ResolutionPreset.medium,
+      enableAudio: false, // Disable audio to avoid unnecessary errors
+    );
+    await _controller!.initialize();
 
-    if (mounted) {
-      setState(() {
-        _cameraController!.startImageStream((imageStream) {
-          cameraImage = imageStream;
-          runModel();
-        });
-      });
-    }
-  }
-
-  toggleCamera() async {
-    isFrontCamera = !isFrontCamera;
-    loadCamera();
-  }
-
-  startTimerToShowButton() {
-    Timer(Duration(seconds: 5), () {
-      setState(() {
-        if (output == "Sad") showButton = true;
-      });
+    setState(() {
+      _isCameraReady = true;
     });
-  }
-
-  runModel() async {
-    if (cameraImage != null && !isModelBusy) {
-      isModelBusy = true;
-
-      try {
-        var predictions = await Tflite.runModelOnFrame(
-          bytesList: cameraImage!.planes.map((plane) {
-            return plane.bytes;
-          }).toList(),
-          imageHeight: cameraImage!.height,
-          imageWidth: cameraImage!.width,
-          imageMean: 127.5,
-          imageStd: 127.5,
-          rotation: 90,
-          numResults: 2,
-          threshold: 0.1,
-          asynch: true,
-        );
-
-        predictions!.forEach((element) {
-          setState(() {
-            output = element['label'];
-          });
-        });
-
-        startTimerToShowButton(); // Start timer after getting output
-      } catch (e) {
-        print('Error running model: $e');
-      } finally {
-        isModelBusy = false;
-      }
-    }
   }
 
   loadModel() async {
@@ -103,87 +63,203 @@ class _EmotionDetectorState extends State<EmotionDetector> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              height: 10,
-            ),
-            Image(
-              height: 120,
-              width: 300,
-              fit: BoxFit.cover,
-              image: AssetImage('assets/images/logo.jpg'),
-            ),
-            SizedBox(
-              height: 10,
-            ),
-            Text(
-              "Emotion Detect by Emosift",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(
-              height: 10,
-            ),
-            Stack(alignment: Alignment.center, children: [
-              Container(
-                height: MediaQuery.of(context).size.height * 0.6,
-                width: MediaQuery.of(context).size.width * 0.7,
-                child: !_cameraController!.value.isInitialized
-                    ? Container()
-                    : Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        width: _cameraController!.value.aspectRatio,
-                        height: _cameraController!.value.aspectRatio,
-                        child: CameraPreview(_cameraController!),
-                      ),
-              ),
-              Positioned(
-                bottom: 16.0,
-                child: ElevatedButton(
-                  onPressed: () {
-                    toggleCamera();
-                  },
-                  child: Text('${isFrontCamera ? 'Front' : 'Back'} Camera'),
-                ),
-              ),
-            ]),
-            Text(
-              'Current Mood is: $output',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            if (showButton && output == "Sad")
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => RecommendationSongsPage(
-                          title: output, playlists: Playlist.playlists),
-                    ),
-                  );
-                },
-                child: Text('Recommendation Songs'),
-              ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _takePicture() async {
+    try {
+      final XFile? file = await _controller!.takePicture();
+
+      if (file != null) {
+        // Process the captured image
+        setState(() {
+          image = imglib.decodeImage(File(file.path).readAsBytesSync())!;
+          isImageLoaded = true;
+        });
+        _detectEmotion(file.path);
+      }
+    } catch (e) {
+      print('Error taking picture: $e');
+    }
+  }
+
+  Future<void> _detectEmotion(String imagePath) async {
+    loading = true;
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('http://192.168.100.122:5000/detect_emotion'),
+      );
+      request.files.add(await http.MultipartFile.fromPath(
+        'image',
+        imagePath,
+        filename: path.basename(imagePath),
+      ));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        setState(() {
+          if (result.isNotEmpty) {
+            output = result[0]['dominant_emotion'];
+            showButton = true;
+            _errorMessage = "";
+          } else {
+            output = "";
+            _errorMessage = "No face detected.";
+          }
+          setState(() {
+            loading = false;
+          });
+        });
+      } else {
+        setState(() {
+          output = "";
+          _errorMessage = jsonDecode(response.body)['error'];
+
+          loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        output = "";
+        _errorMessage = "Error: $e";
+      });
+    } finally {
+      setState(() {
+        loading = false;
+      });
+    }
+  }
+
+  void _toggleCamera() {
+    if (_controller != null) {
+      final CameraLensDirection newDirection =
+          _controller!.description.lensDirection == CameraLensDirection.front
+              ? CameraLensDirection.back
+              : CameraLensDirection.front;
+      _initializeCamera(newDirection);
+    }
   }
 
   @override
   void dispose() {
-    if (_cameraController != null) {
-      _cameraController!.dispose();
-    }
+    _controller?.dispose();
     super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isImageLoaded) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(height: 10),
+              Image(
+                height: 120,
+                width: 300,
+                fit: BoxFit.cover,
+                image: AssetImage('assets/images/logo.jpg'),
+              ),
+              SizedBox(height: 10),
+              Text(
+                "Emotion Detect by Emosift",
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              if (loading)
+                Center(
+                  child:
+                      CircularProgressIndicator(), // Show a loading indicator while camera is initializing
+                )
+              else if (output.isNotEmpty)
+                Text(
+                  'Current Mood is: $output',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              if (showButton)
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RecommendationSongsPage(
+                            title: output, playlists: Playlist.playlists),
+                      ),
+                    );
+                  },
+                  child: Text('Recommendation Songs'),
+                ),
+              if (_errorMessage.isNotEmpty)
+                Column(
+                  children: [
+                    Text(
+                      'Error: $_errorMessage',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ],
+                ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    isImageLoaded = false;
+                    image = imglib.Image(300, 300);
+                    output = '';
+                  });
+                },
+                child: Text('Reupload Image'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      if (_isCameraReady) {
+        return Scaffold(
+          body: Column(
+            children: [
+              SizedBox(height: 100),
+              Expanded(
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 60 / 60,
+                    child: CameraPreview(_controller!),
+                  ),
+                ),
+              ),
+              Transform.rotate(
+                angle: math.pi / 2,
+                child:
+                    Image.memory(Uint8List.fromList(imglib.encodePng(image))),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: _toggleCamera,
+                    icon: Icon(Icons.switch_camera),
+                  ),
+                  SizedBox(width: 20),
+                  FloatingActionButton(
+                    onPressed: _takePicture,
+                    child: Icon(Icons.camera),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      } else {
+        return Scaffold(
+          body: Center(
+            child:
+                CircularProgressIndicator(), // Show a loading indicator while camera is initializing
+          ),
+        );
+      }
+    }
   }
 }
 
