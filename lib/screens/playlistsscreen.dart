@@ -20,14 +20,14 @@ class PlaylistMusicsScreen extends StatelessWidget {
         child: Column(
           children: [
             const SectionHeader(title: 'Playlists'),
-            ListView.builder(
-              shrinkWrap: true,
-              padding: const EdgeInsets.only(top: 20),
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: playlists.length,
-              itemBuilder: ((context, index) {
-                return PlaylistCard(playlist: playlists[index]);
-              }),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.only(top: 20),
+                itemCount: playlists.length,
+                itemBuilder: ((context, index) {
+                  return PlaylistCard(playlist: playlists[index]);
+                }),
+              ),
             ),
           ],
         ),

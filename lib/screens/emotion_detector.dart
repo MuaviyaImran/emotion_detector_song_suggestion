@@ -4,15 +4,15 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:tflite_v2/tflite_v2.dart';
-import 'package:emosift/models/playlist_model.dart';
 import 'package:emosift/screens/home_screen.dart';
-import 'package:emosift/widgets/playlist_card.dart';
 import 'package:emosift/widgets/section_header.dart';
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as imglib; // To handle images
 import 'dart:io';
 import 'dart:math' as math;
-import 'package:path/path.dart' as path; // Add this import
+import 'package:path/path.dart' as path;
+
+import '../models/song_model.dart';
 
 class EmotionDetector extends StatefulWidget {
   const EmotionDetector({Key? key}) : super(key: key);
@@ -81,7 +81,9 @@ class _EmotionDetectorState extends State<EmotionDetector> {
   }
 
   Future<void> _detectEmotion(String imagePath) async {
-    loading = true;
+    setState(() {
+      loading = true;
+    });
     try {
       final request = http.MultipartRequest(
         'POST',
@@ -107,15 +109,12 @@ class _EmotionDetectorState extends State<EmotionDetector> {
             output = "";
             _errorMessage = "No face detected.";
           }
-          setState(() {
-            loading = false;
-          });
+          loading = false;
         });
       } else {
         setState(() {
           output = "";
           _errorMessage = jsonDecode(response.body)['error'];
-
           loading = false;
         });
       }
@@ -123,9 +122,6 @@ class _EmotionDetectorState extends State<EmotionDetector> {
       setState(() {
         output = "";
         _errorMessage = "Error: $e";
-      });
-    } finally {
-      setState(() {
         loading = false;
       });
     }
@@ -186,7 +182,7 @@ class _EmotionDetectorState extends State<EmotionDetector> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => RecommendationSongsPage(
-                            title: output, playlists: Playlist.playlists),
+                            title: output, category: output),
                       ),
                     );
                   },
@@ -265,46 +261,76 @@ class _EmotionDetectorState extends State<EmotionDetector> {
 
 class RecommendationSongsPage extends StatelessWidget {
   final String title;
-  final List<Playlist> playlists;
+  final String category;
 
-  const RecommendationSongsPage(
-      {Key? key, required this.title, required this.playlists})
-      : super(key: key);
+  const RecommendationSongsPage({
+    Key? key,
+    required this.title,
+    required this.category,
+  }) : super(key: key);
+
+  List<Song> getSongsByCategory(String category) {
+    final songsByCategory =
+        Song.songs.where((song) => song.category == category).toList();
+    songsByCategory.shuffle(); // Shuffle the list to show songs in random order
+    print(songsByCategory);
+    return songsByCategory;
+  }
 
   @override
   Widget build(BuildContext context) {
+    List<Song> filteredSongs = getSongsByCategory(category);
+
     return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.blue.shade800.withOpacity(0.8),
-              Colors.blue.shade200.withOpacity(0.8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.blue.shade800.withOpacity(0.8),
+            Colors.blue.shade200.withOpacity(0.8),
+          ],
+        ),
+      ),
+      child: Scaffold(
+        appBar: AppBar(title: Text('$title Recommendation Nasheed')),
+        body: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              const SectionHeader(title: 'Songs'),
+              filteredSongs.isNotEmpty
+                  ? ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(top: 20),
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filteredSongs.length,
+                      itemBuilder: (context, index) {
+                        Song song = filteredSongs[index];
+                        return ListTile(
+                          leading: Image.asset(song.coverUrl),
+                          title: Text(song.title),
+                          subtitle: Text(song.description),
+                        );
+                      },
+                    )
+                  : Center(
+                      child: Text(
+                        'No songs found',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (ctx) => HomeScreen()));
+                },
+                child: Text("Browse more Nasheeds"),
+              ),
             ],
           ),
         ),
-        child: Scaffold(
-            appBar: AppBar(title: Text('$title Recommendation Nasheed')),
-            body: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(children: [
-                  const SectionHeader(title: 'Playlists'),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.only(top: 20),
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: playlists.length,
-                    itemBuilder: ((context, index) {
-                      return PlaylistCard(playlist: playlists[index]);
-                    }),
-                  ),
-                  ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(context,
-                            MaterialPageRoute(builder: (ctx) => HomeScreen()));
-                      },
-                      child: Text("Browse more Nasheeds"))
-                ]))));
+      ),
+    );
   }
 }

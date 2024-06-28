@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import '../models/playlist_model.dart';
 
 class PlaylistCard extends StatelessWidget {
@@ -15,7 +14,9 @@ class PlaylistCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        Get.toNamed('/playlist', arguments: playlist);
+        // Navigate to a new screen with playlist details
+        // You need to define the route and the screen
+        // Get.toNamed('/playlistDetails', arguments: playlist);
       },
       child: Container(
         height: 75,
