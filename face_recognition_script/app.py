@@ -1,3 +1,5 @@
+# pip install Flask opencv-python deepface numpy
+
 from flask import Flask, request, jsonify, after_this_request
 import cv2
 from deepface import DeepFace
