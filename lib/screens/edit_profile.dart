@@ -1,13 +1,17 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emosift/colors_scheme.dart';
+import 'package:emosift/models/user.dart';
 import 'package:emosift/screens/home_screen.dart';
 import 'package:emosift/widgets/app_bar.dart';
 import 'package:emosift/widgets/custom_button.dart';
 import 'package:emosift/widgets/custom_field.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EditProfile extends StatefulWidget {
   const EditProfile({super.key});
@@ -20,10 +24,10 @@ class _EditProfileState extends State<EditProfile> {
   final _emailController = TextEditingController();
   //final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _fNameController = TextEditingController();
+  final _nameController = TextEditingController();
   final _lNameController = TextEditingController();
   File? _image;
-
+  bool isLoading = false;
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -33,6 +37,89 @@ class _EditProfileState extends State<EditProfile> {
         _image = File(pickedFile.path);
       });
     }
+  }
+
+  UserData userData;
+  _EditProfileState()
+      : userData = UserData(
+          uid: '',
+          name: '',
+          email: '',
+          dob: '',
+          profileImageUrl: '',
+        );
+
+  @override
+  void initState() {
+    super.initState();
+    fetchData();
+  }
+
+  Future<void> fetchData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userData = UserData.fromSharedPreferences(prefs);
+      _emailController.text = userData.email;
+      _nameController.text = userData.name;
+    });
+  }
+
+  Future<void> updateProfile() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+      String uid = userData.uid;
+
+      if (_image != null) {
+        userData.profileImageUrl = await uploadImageToFirebaseStorage(uid);
+      }
+      // Update profile without changing image
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'profileImageUrl': userData.profileImageUrl,
+      });
+
+      // Update SharedPreferences
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('name', _nameController.text);
+      await prefs.setString('email', _emailController.text);
+      await prefs.setString('profileImageUrl', userData.profileImageUrl);
+      fetchData();
+
+      // Navigate back to home screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => HomeScreen()),
+      );
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      print('Error updating profile: $e');
+      // Handle error
+    }
+  }
+
+  Future<String> uploadImageToFirebaseStorage(String uid) async {
+    try {
+      FirebaseStorage storage = FirebaseStorage.instance;
+      Reference ref = storage.ref().child('profile_images').child('$uid.jpg');
+      UploadTask uploadTask = ref.putFile(_image!);
+      TaskSnapshot snapshot = await uploadTask.whenComplete(() => null);
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print('Error uploading image: $e');
+      throw Exception('Failed to upload image');
+    }
+  }
+
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
   }
 
   @override
@@ -47,32 +134,58 @@ class _EditProfileState extends State<EditProfile> {
       ),
       body: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Center(
-          child: InkWell(
-            onTap: _pickImage,
+          child: Center(
             child: Container(
               width: width * 0.25,
               height: height * 0.25,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Colors.blue.shade900,
+                  color: AppColorScheme.primaryColor,
                   width: 4.0,
                 ),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Stack(
                 children: [
-                  CircleAvatar(
-                    radius: 46.0,
-                    backgroundColor: Colors.transparent,
-                    backgroundImage: _image != null ? FileImage(_image!) : null,
-                    child: _image == null
-                        ? Icon(
-                            Icons.person,
-                            size: 60.0,
-                            color: Colors.grey[600],
+                  Positioned(
+                    bottom: 52,
+                    right: 3,
+                    child: userData.profileImageUrl != '' && _image == null
+                        ? CircleAvatar(
+                            radius: 42.0,
+                            backgroundColor: Colors.transparent,
+                            backgroundImage:
+                                NetworkImage(userData.profileImageUrl),
                           )
-                        : CircleAvatar(),
+                        : _image != null
+                            ? CircleAvatar(
+                                radius: 42.0,
+                                backgroundColor: Colors.transparent,
+                                backgroundImage: FileImage(_image!),
+                              )
+                            : Icon(
+                                Icons.person,
+                                size: 60.0,
+                                color: Colors.grey[600],
+                              ),
+                  ),
+                  Positioned(
+                    bottom: 40,
+                    right: -10,
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50)),
+                      child: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          child: InkWell(
+                            onTap: _pickImage,
+                            child: Icon(
+                              Icons.edit,
+                              size: 20,
+                              color: AppColorScheme.primaryColor,
+                            ),
+                          )),
+                    ),
                   ),
                 ],
               ),
@@ -100,36 +213,45 @@ class _EditProfileState extends State<EditProfile> {
               MyCustomTextField(
                 title: 'Name',
                 icon: Icons.person,
+                controller: _nameController,
                 hintText: 'Enter your name',
                 leadingIconColor: Colors.blue,
               ),
               SizedBox(height: 16.0),
               MyCustomTextField(
                 title: 'Email',
+                isDisabled: true,
                 icon: Icons.email,
+                controller: _emailController,
                 hintText: 'Enter your email',
                 leadingIconColor: Colors.green,
               ),
               SizedBox(height: 16.0),
-              MyCustomTextField(
-                title: 'Phone',
-                icon: Icons.phone,
-                hintText: 'Enter your phone number',
-                isPassword: true,
-                leadingIconColor: Colors.red,
-              ),
             ],
           ),
         ),
         SizedBox(
           height: 100,
         ),
+        if (isLoading)
+          Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Container(
+                height: 14,
+                width: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 50),
           child: MyCustomButton(
             onPressed: () {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => HomeScreen()));
+              updateProfile();
             },
             name: 'Update',
             bgColor: Colors.blue.shade900,

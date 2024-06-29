@@ -3,8 +3,9 @@
 import 'dart:async';
 
 import 'package:emosift/screens/auth_main.dart';
-import 'package:emosift/screens/screens.dart';
+import 'package:emosift/screens/emotion_detector.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -12,14 +13,27 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  renderTo() {
+    SharedPreferences.getInstance().then((prefs) {
+      if (prefs.getString('uid') != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => EmotionDetector()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => AuthMain()),
+        );
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     Timer(const Duration(seconds: 5), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => AuthMain()),
-      );
+      renderTo();
     });
   }
 

@@ -1,12 +1,13 @@
-import 'dart:io';
-
 import 'package:emosift/colors_scheme.dart';
 import 'package:emosift/screens/auth_main.dart';
 import 'package:emosift/screens/edit_profile.dart';
 import 'package:emosift/widgets/app_bar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+
+import 'package:emosift/models/user.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileView extends StatefulWidget {
   const ProfileView({super.key});
@@ -16,17 +17,27 @@ class ProfileView extends StatefulWidget {
 }
 
 class _ProfileViewState extends State<ProfileView> {
-  File? _image;
+  UserData userData;
+  _ProfileViewState()
+      : userData = UserData(
+          uid: '',
+          name: '',
+          email: '',
+          dob: '',
+          profileImageUrl: '',
+        );
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  @override
+  void initState() {
+    super.initState();
+    fetchData();
+  }
 
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-    }
+  Future<void> fetchData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userData = UserData.fromSharedPreferences(prefs);
+    });
   }
 
   @override
@@ -34,75 +45,75 @@ class _ProfileViewState extends State<ProfileView> {
     final height = MediaQuery.of(context).size.height;
 
     final width = MediaQuery.of(context).size.width;
+    Future<void> clearUserData() async {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.remove('uid');
+      await prefs.remove('name');
+      await prefs.remove('email');
+      await prefs.remove('dob');
+      await prefs.remove('profileImageUrl');
+    }
+
+    Future<void> signOut() async {
+      try {
+        await FirebaseAuth.instance.signOut();
+        // Clear SharedPreferences data
+        await clearUserData();
+        // Navigate to login screen or any other screen after logout
+
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (ctx) => AuthMain()));
+      } catch (e) {
+        print("Error signing out: $e");
+        // Handle sign out error
+      }
+    }
 
     return Scaffold(
       appBar: MyAppBar(
         title: "Profile",
       ),
       body: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Container(
-          height: height * 0.3,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: InkWell(
-              onTap: _pickImage,
-              child: Container(
-                width: width * 0.25,
-                height: height * 0.25,
+        userData != null
+            ? Container(
+                height: height * 0.3,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColorScheme.primaryColor,
-                    width: 4.0,
+                ),
+                child: Center(
+                  child: Container(
+                    width: width * 0.25,
+                    height: height * 0.25,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColorScheme.primaryColor,
+                        width: 4.0,
+                      ),
+                    ),
+                    child: userData.profileImageUrl != null
+                        ? CircleAvatar(
+                            radius: 46.0,
+                            backgroundColor: Colors.transparent,
+                            backgroundImage:
+                                NetworkImage(userData.profileImageUrl!),
+                          )
+                        : Icon(
+                            Icons.person,
+                            size: 60.0,
+                            color: Colors.grey[600],
+                          ),
                   ),
                 ),
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 36.0,
-                      backgroundColor: Colors.transparent,
-                      backgroundImage:
-                          _image != null ? FileImage(_image!) : null,
-                    ),
-                    if (_image == null)
-                      Center(
-                        child: Icon(
-                          Icons.camera_alt,
-                          size: 40.0,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    Positioned(
-                      bottom: 40,
-                      right: -10,
-                      child: Card(
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(50)),
-                        child: CircleAvatar(
-                          backgroundColor: Colors.white,
-                          child: Icon(
-                            Icons.edit,
-                            size: 20,
-                            color: AppColorScheme.primaryColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+              )
+            : Container(),
         Text(
-          "Amna Hassan",
+          userData.name,
           style: AppColorScheme.heading3(
               fontWeight: FontWeight.normal, color: Colors.black),
         ),
         Text(
-          "amna.00427332@gmail.com",
+          userData.email,
           style: AppColorScheme.bodyText(
               fontWeight: FontWeight.normal, color: Colors.grey),
         ),
@@ -157,8 +168,7 @@ class _ProfileViewState extends State<ProfileView> {
         ),
         customTile(
           onPressed: () {
-            Navigator.pushReplacement(
-                context, MaterialPageRoute(builder: (ctx) => AuthMain()));
+            signOut();
           },
           title: 'Logout',
           icon: Icons.person,

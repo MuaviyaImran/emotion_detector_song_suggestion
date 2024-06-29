@@ -6,6 +6,8 @@ class MyCustomTextField extends StatefulWidget {
   final IconData icon;
   final String hintText;
   final bool isPassword;
+  final bool isDisabled;
+  final TextEditingController controller;
   final Color leadingIconColor;
 
   MyCustomTextField({
@@ -14,8 +16,11 @@ class MyCustomTextField extends StatefulWidget {
     required this.icon,
     required this.hintText,
     this.isPassword = false,
+    bool? isDisabled,
+    required this.controller,
     required this.leadingIconColor,
-  }) : super(key: key);
+  })  : isDisabled = isDisabled ?? false,
+        super(key: key);
 
   @override
   _MyCustomTextFieldState createState() => _MyCustomTextFieldState();
@@ -39,8 +44,11 @@ class _MyCustomTextFieldState extends State<MyCustomTextField> {
         ),
         SizedBox(height: 8.0),
         TextFormField(
+          enabled: !widget.isDisabled,
           style: TextStyle(color: Colors.black),
           obscureText: widget.isPassword ? _obscureText : false,
+          controller: widget.controller,
+
           decoration: InputDecoration(
             prefixIcon: Icon(
               widget.icon,
@@ -80,6 +88,7 @@ class _MyCustomTextFieldState extends State<MyCustomTextField> {
           onChanged: (value) {
             setState(() {
               _isFocused = value.isNotEmpty;
+              widget.controller.text = value;
             });
           },
           onTap: () {

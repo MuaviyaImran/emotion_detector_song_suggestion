@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "682938451403",
+    "project_id": "emotion-5cc9c",
+    "storage_bucket": "emotion-5cc9c.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:682938451403:android:a40cf6a7e74f083dd2a24e",
+        "android_client_info": {
+          "package_name": "com.example.emosift"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJ0NZnKu5Oqvdb8Vq7DYUjWWHseB4mgEE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

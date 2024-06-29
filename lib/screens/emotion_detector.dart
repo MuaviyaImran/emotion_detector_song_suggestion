@@ -275,7 +275,7 @@ class RecommendationSongsPage extends StatelessWidget {
     final songsByCategory =
         Song.songs.where((song) => song.category == category).toList();
     songsByCategory.shuffle(); // Shuffle the list to show songs in random order
-    print(songsByCategory);
+
     return songsByCategory;
   }
 
@@ -334,7 +334,7 @@ class RecommendationSongsPage extends StatelessWidget {
                   Navigator.push(context,
                       MaterialPageRoute(builder: (ctx) => HomeScreen()));
                 },
-                child: Text("Browse more Nasheeds"),
+                child: Text("Browse more Music"),
               ),
             ],
           ),
