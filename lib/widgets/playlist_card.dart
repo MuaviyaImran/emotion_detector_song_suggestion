@@ -16,7 +16,7 @@ class PlaylistCard extends StatelessWidget {
       onTap: () {
         // Navigate to a new screen with playlist details
         // You need to define the route and the screen
-        // Get.toNamed('/playlistDetails', arguments: playlist);
+        Get.toNamed('/playlist', arguments: playlist);
       },
       child: Container(
         height: 75,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:tflite_v2/tflite_v2.dart';
@@ -13,6 +14,7 @@ import 'dart:math' as math;
 import 'package:path/path.dart' as path;
 
 import '../models/song_model.dart';
+import '../widgets/playlist_card.dart';
 
 class EmotionDetector extends StatefulWidget {
   const EmotionDetector({Key? key}) : super(key: key);
@@ -293,7 +295,10 @@ class RecommendationSongsPage extends StatelessWidget {
         ),
       ),
       child: Scaffold(
-        appBar: AppBar(title: Text('$title Recommendation Nasheed')),
+        appBar: AppBar(
+            title: Text(
+          ' Recommended Songs for $title',
+        )),
         body: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
@@ -307,11 +312,15 @@ class RecommendationSongsPage extends StatelessWidget {
                       itemCount: filteredSongs.length,
                       itemBuilder: (context, index) {
                         Song song = filteredSongs[index];
-                        return ListTile(
-                          leading: Image.asset(song.coverUrl),
-                          title: Text(song.title),
-                          subtitle: Text(song.description),
-                        );
+                        return InkWell(
+                            onTap: () {
+                              Get.toNamed('/song', arguments: song);
+                            },
+                            child: ListTile(
+                              leading: Image.asset(song.coverUrl),
+                              title: Text(song.title),
+                              subtitle: Text(song.description),
+                            ));
                       },
                     )
                   : Center(
